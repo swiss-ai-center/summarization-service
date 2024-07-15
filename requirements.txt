@@ -1,1 +1,8 @@
 common-code[test] @ git+https://github.com/swiss-ai-center/common-code.git@main
+langchain
+langchain-community
+tenacity >=8.1.0,!=8.4.0
+pymupdf
+pypdf
+tiktoken
+sentence_transformers

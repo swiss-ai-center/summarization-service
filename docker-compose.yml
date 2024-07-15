@@ -5,11 +5,11 @@ services:
       dockerfile: development.Dockerfile
     command: |
       bash -c "
-        if [ -d .venv ]; 
-        then 
-          echo '.venv exists and is not empty'; 
-        else 
-          echo '.venv does not exist or is empty'; 
+        if [ -d .venv ];
+        then
+          echo '.venv exists and is not empty';
+        else
+          echo '.venv does not exist or is empty';
           python3.11 -m venv .venv;
         fi &&
         # Activate the virtual environment
@@ -23,6 +23,7 @@ services:
     environment:
       - ENGINE_URLS=["http://host.docker.internal:8080"]
       - SERVICE_URL=http://host.docker.internal:${SERVICE_PORT}
+      - LLM_BASE_URL=http://ollama-api:11434
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -30,3 +31,18 @@ services:
     working_dir: /workspaces/service
     volumes:
       - .:/workspaces/service
+
+  ollama-api:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        ollama serve &
+        # wait for ollama to start bigger number may be needed for slower machines
+        sleep 10
+        ollama pull mistral:instruct
+        sleep infinity
+

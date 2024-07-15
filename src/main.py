@@ -14,20 +14,32 @@ from common_code.tasks.service import TasksService
 from common_code.tasks.models import TaskData
 from common_code.service.models import Service
 from common_code.service.enums import ServiceStatus
-from common_code.common.enums import FieldDescriptionType, ExecutionUnitTagName, ExecutionUnitTagAcronym
+from common_code.common.enums import (
+    FieldDescriptionType,
+    ExecutionUnitTagName,
+    ExecutionUnitTagAcronym,
+)
 from common_code.common.models import FieldDescription, ExecutionUnitTag
 from contextlib import asynccontextmanager
 
 # Imports required by the service's model
-# TODO: 1. ADD REQUIRED IMPORTS (ALSO IN THE REQUIREMENTS.TXT)
+from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+from langchain.llms.ollama import Ollama
+from langchain.chains import MapReduceDocumentsChain, ReduceDocumentsChain
+from langchain.chains.llm import LLMChain
+
+from langchain_text_splitters import CharacterTextSplitter
+from langchain_core.prompts import PromptTemplate
+import tempfile
+import os
 
 settings = get_settings()
 
 
 class MyService(Service):
-    # TODO: 2. CHANGE THIS DESCRIPTION
     """
-    My service model
+    Summarization service using LLMs
     """
 
     # Any additional fields must be excluded for Pydantic to work
@@ -36,27 +48,22 @@ class MyService(Service):
 
     def __init__(self):
         super().__init__(
-            # TODO: 3. CHANGE THE SERVICE NAME AND SLUG
-            name="My Service",
-            slug="my-service",
+            name="Summarization",
+            slug="Summarization",
             url=settings.service_url,
             summary=api_summary,
             description=api_description,
             status=ServiceStatus.AVAILABLE,
-            # TODO: 4. CHANGE THE INPUT AND OUTPUT FIELDS, THE TAGS AND THE HAS_AI VARIABLE
             data_in_fields=[
                 FieldDescription(
-                    name="image",
+                    name="document",
                     type=[
-                        FieldDescriptionType.IMAGE_PNG,
-                        FieldDescriptionType.IMAGE_JPEG,
+                        FieldDescriptionType.APPLICATION_PDF,
                     ],
                 ),
             ],
             data_out_fields=[
-                FieldDescription(
-                    name="result", type=[FieldDescriptionType.APPLICATION_JSON]
-                ),
+                FieldDescription(name="result", type=[FieldDescriptionType.TEXT_PLAIN]),
             ],
             tags=[
                 ExecutionUnitTag(
@@ -70,19 +77,80 @@ class MyService(Service):
         )
         self._logger = get_logger(settings)
 
-    # TODO: 5. CHANGE THE PROCESS METHOD (CORE OF THE SERVICE)
     def process(self, data):
-        # NOTE that the data is a dictionary with the keys being the field names set in the data_in_fields
-        # The objects in the data variable are always bytes. It is necessary to convert them to the desired type
-        # before using them.
-        # raw = data["image"].data
-        # input_type = data["image"].type
-        # ... do something with the raw data
 
-        # NOTE that the result must be a dictionary with the keys being the field names set in the data_out_fields
-        return {
-            "result": TaskData(data=..., type=FieldDescriptionType.APPLICATION_JSON)
-        }
+        raw_file = data["document"].data
+
+        temp_dir = tempfile.TemporaryDirectory()
+        doc_path = os.path.join(temp_dir.name, "document.pdf")
+        with open(doc_path, "wb") as f:
+            f.write(raw_file)
+
+        llm = Ollama(
+            model="mistral:instruct",
+            base_url=os.getenv("LLM_BASE_URL"),
+            temperature=0,
+            stop=["[/INST]"],
+        )
+
+        MAP_TEMPLATE = """[INST]The following is a set of documents
+        {docs}
+        Based on this list of docs, please summarize each document in a few sentences.
+        The information to extract are the following:
+        SUMMARY:[/INST]"""
+
+        REDUCE_TEMPLATE = """[INST]The following is a set of summaries:
+        {docs}
+        Take these and distill it into a final, consolidated summary of everything.
+        SUMMARY:[/INST]"""
+
+        map_prompt = PromptTemplate.from_template(MAP_TEMPLATE)
+
+        reduce_prompt = PromptTemplate.from_template(REDUCE_TEMPLATE)
+
+        map_chain = LLMChain(llm=llm, prompt=map_prompt)
+        reduce_chain = LLMChain(llm=llm, prompt=reduce_prompt)
+
+        combine_documents_chain = StuffDocumentsChain(
+            llm_chain=reduce_chain, document_variable_name="docs"
+        )
+
+        # Combines and iteratively reduces the mapped documents
+        reduce_documents_chain = ReduceDocumentsChain(
+            # This is final chain that is called.
+            combine_documents_chain=combine_documents_chain,
+            # If documents exceed context for `StuffDocumentsChain`
+            collapse_documents_chain=combine_documents_chain,
+            # The maximum number of tokens to group documents into.
+            token_max=4000,
+        )
+
+        map_reduce_chain = MapReduceDocumentsChain(
+            # Map chain
+            llm_chain=map_chain,
+            # Reduce chain
+            reduce_documents_chain=reduce_documents_chain,
+            # The variable name in the llm_chain to put the documents in
+            document_variable_name="docs",
+            # Return the results of the map steps in the output
+            return_intermediate_steps=False,
+        )
+
+        text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=1000, chunk_overlap=100
+        )
+
+        document_loader = PyPDFDirectoryLoader(doc_path)
+        docs = document_loader.load()
+        split_docs = text_splitter.split_documents(docs)
+
+        print(split_docs)
+
+        result = map_reduce_chain.invoke(split_docs)["output_text"]
+
+        temp_dir.cleanup()
+
+        return {"result": TaskData(data=result, type=FieldDescriptionType.TEXT_PLAIN)}
 
 
 service_service: ServiceService | None = None
@@ -115,7 +183,9 @@ async def lifespan(app: FastAPI):
         for engine_url in settings.engine_urls:
             announced = False
             while not announced and retries > 0:
-                announced = await service_service.announce_service(my_service, engine_url)
+                announced = await service_service.announce_service(
+                    my_service, engine_url
+                )
                 retries -= 1
                 if not announced:
                     time.sleep(settings.engine_announce_retry_delay)
@@ -135,19 +205,19 @@ async def lifespan(app: FastAPI):
         await service_service.graceful_shutdown(my_service, engine_url)
 
 
-# TODO: 6. CHANGE THE API DESCRIPTION AND SUMMARY
-api_description = """My service
-bla bla bla...
+api_description = """Summarization service using LLMs with a map reduce approach.
+Each document will be summarized individually (Mapping phase) and
+then all the summaries will be combined into a single summary (Reduce phase).
 """
-api_summary = """My service
-bla bla bla...
+api_summary = """Summarization service using LLMs with a map reduce approach.
+Each document will be summarized individually (Mapping phase) and
+then all the summaries will be combined into a single summary (Reduce phase).
 """
 
 # Define the FastAPI application with information
-# TODO: 7. CHANGE THE API TITLE, VERSION, CONTACT AND LICENSE
 app = FastAPI(
     lifespan=lifespan,
-    title="Sample Service API.",
+    title="Summarization API.",
     description=api_description,
     version="0.0.1",
     contact={
