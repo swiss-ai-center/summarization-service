@@ -26,6 +26,9 @@ spec:
         envFrom:
           - configMapRef:
               name: my-service-config
+        env:
+        - name : LLM_BASE_URL
+          value: http://localhost:11434
       - name: ollama
         image: ollama/ollama
         ports:
