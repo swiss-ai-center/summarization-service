@@ -26,6 +26,9 @@ spec:
         envFrom:
           - configMapRef:
               name: my-service-config
+        env:
+        - name : LLM_BASE_URL
+          value: http://localhost:11434
       - name: ollama
         image: ollama/ollama
         ports:
@@ -38,10 +41,3 @@ spec:
           sleep 10
           ollama pull mistral:instruct
           sleep infinity
-        resources:
-          requests:
-            tencent.com/vcuda-core: 20
-            tencent.com/vcuda-memory: 8
-          limits:
-            tencent.com/vcuda-core: 20
-            tencent.com/vcuda-memory: 8

@@ -88,7 +88,7 @@ class MyService(Service):
 
         llm = Ollama(
             model="mistral:instruct",
-            base_url="http://localhost:11434",
+            base_url=os.getenv("LLM_BASE_URL"),
             temperature=0,
             stop=["[/INST]"],
         )
