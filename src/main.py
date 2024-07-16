@@ -93,16 +93,15 @@ class MyService(Service):
             stop=["[/INST]"],
         )
 
-        MAP_TEMPLATE = """[INST]The following is a set of documents
+        MAP_TEMPLATE = """The following is a set of documents
         {docs}
-        Based on this list of docs, please summarize each document in a few sentences.
-        The information to extract are the following:
-        SUMMARY:[/INST]"""
+        Based on this list of documents, please summarize each document in a few sentences.
+        Helpful Answer:"""
 
-        REDUCE_TEMPLATE = """[INST]The following is a set of summaries:
+        REDUCE_TEMPLATE = """The following is set of summaries:
         {docs}
-        Take these and distill it into a final, consolidated summary of everything.
-        SUMMARY:[/INST]"""
+        Take these and distill it into a final, consolidated summary of the main themes.
+        Helpful Answer:"""
 
         map_prompt = PromptTemplate.from_template(MAP_TEMPLATE)
 
@@ -140,11 +139,9 @@ class MyService(Service):
             chunk_size=1000, chunk_overlap=100
         )
 
-        document_loader = PyPDFDirectoryLoader(doc_path)
+        document_loader = PyPDFDirectoryLoader(temp_dir.name)
         docs = document_loader.load()
         split_docs = text_splitter.split_documents(docs)
-
-        print(split_docs)
 
         result = map_reduce_chain.invoke(split_docs)["output_text"]
 
