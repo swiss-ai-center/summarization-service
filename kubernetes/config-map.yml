@@ -9,6 +9,7 @@ data:
   LOG_LEVEL: debug
   ENGINE_URLS: '["http://core-engine-service:8080"]'
   SERVICE_URL: http://my-service-service:9090
+  LLM_BASE_URL: http://localhost:11434
   MAX_TASKS: '50'
   ENGINE_ANNOUNCE_RETRIES: '5'
   ENGINE_ANNOUNCE_RETRY_DELAY: '3'

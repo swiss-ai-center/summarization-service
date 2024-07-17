@@ -26,6 +26,3 @@ spec:
         envFrom:
           - configMapRef:
               name: my-service-config
-        env:
-        - name : LLM_BASE_URL
-          value: ollama.kube.isc.heia-fr.ch
