@@ -185,6 +185,10 @@ jobs:
           engine-announce-retries: ${{ env.PROD_ENGINE_ANNOUNCE_RETRIES }}
           engine-announce-retry-delay: ${{ env.PROD_ENGINE_ANNOUNCE_RETRY_DELAY }}
 
+      - name: Update ollama url
+        run: |
+          yq -i ".data.LLM_BASE_URL = \"${{ env.PROD_OLLAMA_ADDRESS }}\"" config-map.yml
+
       - name: Deploy service on the Kubernetes cluster
         uses: swiss-ai-center/common-code/.github/actions/execute-command-on-kubernetes-cluster@main
         with:
