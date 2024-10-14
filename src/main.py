@@ -49,7 +49,7 @@ class MyService(Service):
     def __init__(self):
         super().__init__(
             name="Summarization",
-            slug="Summarization",
+            slug="summarization",
             url=settings.service_url,
             summary=api_summary,
             description=api_description,
