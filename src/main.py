@@ -203,10 +203,10 @@ async def lifespan(app: FastAPI):
 
 
 api_description = """Summarization service using LLMs with a map reduce approach.
-"""
-api_summary = """Summarization service using LLMs with a map reduce approach.
 Each document will be summarized individually (Mapping phase) and
 then all the summaries will be combined into a single summary (Reduce phase).
+"""
+api_summary = """Summarization service using LLMs with a map reduce approach.
 """
 
 # Define the FastAPI application with information
